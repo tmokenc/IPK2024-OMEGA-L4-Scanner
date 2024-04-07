@@ -7,21 +7,168 @@
 
 #include "args.h"
 #include <stdlib.h>
+#include <string.h>
 
-Args args_parse(int argc, char **argv) {
-    Args result;
+bool string_match(const char *str, const char *str_short, const char *str_long) {
+    return strcmp(str, str_short) == 0 || strcmp(str, str_long) == 0;
+}
 
-    // TODO
+bool parse_range(const char *str, Ports *ports) {
+    memset(ports, 0, sizeof(Ports));
 
-    return result;
+    bool state_2 = false;
+
+    for (int i = 0; str[i]; i++) {
+        char ch = str[i];
+        
+        if (ch == '-' && !state_2) {
+            state_2 = true;
+            continue;
+        }
+
+        if (ch < '0' || ch > '9') {
+            return false;
+        }
+
+        uint16_t *num = state_2 ? &ports->data.range.to : &ports->data.range.from;
+
+        *num *= 10;
+        *num += ch - '0';
+    }
+
+    if (ports->data.range.from >= ports->data.range.to) {
+        return false;
+    }
+    
+    ports->type = PortType_Range;
+    return true;
+}
+
+bool parse_specific(const char *str, Ports *ports) {
+    memset(ports, 0, sizeof(Ports));
+
+    ports->data.specific.ports = (uint16_t *)malloc(sizeof(uint16_t));
+    ports->data.specific.count = 1;
+
+    if (!ports->data.specific.ports) {
+        return false;
+    }
+
+    for (int i = 0; str[i]; i++) {
+        char ch = str[i];
+        if (ch == ',') {
+            /// Check if the current number is duplicated or not
+            uint16_t current_num = ports->data.specific.ports[ports->data.specific.count-1];
+            for (size_t i = 0; i < ports->data.specific.count - 1; i++) {
+                if (current_num == ports->data.specific.ports[i]) {
+                    return false;
+                }
+            }
+
+            uint16_t *tmp = realloc(ports->data.specific.ports, ++ports->data.specific.count * sizeof(uint16_t));
+
+            if (!tmp) {
+                return false;
+            }
+
+            tmp[ports->data.specific.count-1] = 0;
+            ports->data.specific.ports = tmp;
+            continue;
+        }
+
+        if (ch < '0' || ch > '9') {
+            free(ports->data.specific.ports);
+            return false;
+        }
+
+        ports->data.specific.ports[ports->data.specific.count - 1] *= 10;
+        ports->data.specific.ports[ports->data.specific.count - 1] += ch - '0';
+    }
+
+    ports->type = PortType_Specific;
+    return true;
+}
+
+bool parse_ports(const char *str, Ports *ports) {
+    return parse_range(str, ports) || parse_specific(str, ports);
+}
+
+bool parse_number(const char *str, unsigned *output) {
+    *output = 0;
+
+    for (int i = 0; str[i]; i++) { 
+        char ch = str[i];
+        if (ch < '0' || ch > '9') {
+            return false;
+        }
+
+        *output *= 10;
+        *output += ch - '0';
+    }
+
+    return true;
+}
+
+bool args_parse(Args *result, int argc, char **argv) {
+    memset(result, 0, sizeof(Args));
+
+    result->wait_time_millis = 5000;
+
+    bool got_interface = false;
+    bool got_udp_ports = false;
+    bool got_tcp_ports = false;
+    bool got_target_host = false;
+    bool got_wait = false;
+
+    for (int i = 1; i < argc; i++) {
+        if (string_match(argv[i], "-i", "--interface")) {
+            if (got_interface) return false;
+            result->interface = argv[++i];
+            got_interface = true;
+            continue;
+        }
+
+        if (string_match(argv[i], "-t", "--pt")) {
+            if (got_tcp_ports || !parse_ports(argv[++i], &result->tcp_ports)) {
+                return false;
+            }
+
+            got_tcp_ports = true;
+            continue;
+        }
+
+        if (string_match(argv[i], "-u", "--pu")) {
+            if (got_udp_ports || !parse_ports(argv[++i], &result->udp_ports)) {
+                return false;
+            }
+
+            got_udp_ports = true;
+            continue;
+        }
+
+        if (string_match(argv[i], "-w", "--wait")) {
+            if (got_wait || !parse_number(argv[++i], &result->wait_time_millis)) {
+                return false;
+            }
+
+            got_wait = true;
+            continue;
+        }
+
+        if (got_target_host) return false;
+        got_target_host = true;
+        result->target_host = argv[i];
+    }
+
+    return true;
 }
 
 void args_free(Args *args) {
-    if (args->udp_port) {
-        free(args->udp_port);
+    if (args->udp_ports.type == PortType_Specific) {
+        free(args->udp_ports.data.specific.ports);
     }
 
-    if (args->tcp_port) {
-        free(args->tcp_port);
+    if (args->tcp_ports.type == PortType_Specific) {
+        free(args->tcp_ports.data.specific.ports);
     }
 }
