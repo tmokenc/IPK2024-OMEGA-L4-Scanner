@@ -67,6 +67,29 @@ int main(int argc, char **argv) {
     return 0;
 }
 
+int print_interfaces() {
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_if_t *interfaces;
+    
+    // Get a list of available network interfaces
+    if (pcap_findalldevs(&interfaces, errbuf) == -1) {
+        fprintf(stderr, "Error finding devices: %s\n", errbuf);
+        return 1;
+    }
+
+    // Print the list of interfaces
+    printf("Available network interfaces:\n");
+    pcap_if_t *interface = interfaces;
+    while (interface) {
+        printf("- %s\n", interface->name);
+        interface = interface->next;
+    }
+
+    // Free the memory allocated for the interface list
+    pcap_freealldevs(interfaces);
+    return 0;
+}
+
 void tcp_scan(const char *target, uint16_t port, int timeout) {
     printf("TCP: %s:%d (%dms)\n", target, port, timeout);
     // TODO
