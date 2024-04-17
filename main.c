@@ -6,12 +6,24 @@
  */
 
 #include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
 #include <pcap.h>
 #include "args.h"
+#include "network.h"
+#include "tcp.h"
+#include "udp.h"
 
-void tcp_scan(const char *target, uint16_t port, int timeout);
-void udp_scan(const char *target, uint16_t port, int timeout);
-int print_interfaces();
+void for_each_port(
+    Ports ports, 
+    ScanFunc scanner, 
+    unsigned timeout, 
+    struct sockaddr *src_addr, socklen_t src_len,
+    struct sockaddr *dst_addr, socklen_t dst_len
+);
+
+bool is_duplicated_addr(struct sockaddr *addr, struct addrinfo *address_info);
+void print_address(struct sockaddr *addr);
 
 int main(int argc, char **argv) {
     Args args;
@@ -25,77 +37,59 @@ int main(int argc, char **argv) {
         return print_interfaces();
     }
 
-    printf("PORT STATES\n");
+    /// Get address info of the hostname
+    struct addrinfo *address_info;
 
-    /// Scanning TCP ports
-    switch (args.tcp_ports.type) {
-        case PortType_Range:
-            for (uint16_t port = args.tcp_ports.data.range.from; port <= args.tcp_ports.data.range.to; port++) {
-                tcp_scan(args.target_host, port, args.wait_time_millis);
-            }
-            break;
-        case PortType_Specific:
-            for (size_t i = 0; i < args.tcp_ports.data.specific.count; i++) {
-                tcp_scan(args.target_host, args.tcp_ports.data.specific.ports[i], args.wait_time_millis);
-            }
-
-            break;
-        case PortType_None:
-            break;
-
+    if (getaddrinfo(args.target_host, NULL, NULL, &address_info) != 0) {
+        fprintf(stderr, "Cannot get the address info of %s\n", args.target_host);
     }
 
-    /// Scanning UDP ports
-    switch (args.udp_ports.type) {
-        case PortType_Range:
-            for (uint16_t port = args.udp_ports.data.range.from; port <= args.udp_ports.data.range.to; port++) {
-                udp_scan(args.target_host, port, args.wait_time_millis);
-            }
-            break;
-        case PortType_Specific:
-            for (size_t i = 0; i < args.udp_ports.data.specific.count; i++) {
-                udp_scan(args.target_host, args.udp_ports.data.specific.ports[i], args.wait_time_millis);
-            }
-            break;
-        case PortType_None:
-            break;
+    struct sockaddr_storage src_addr = {0};
+    socklen_t src_len = sizeof(struct sockaddr_storage);
 
+    /// Loop through all IP addresses
+    for (struct addrinfo *dst_addr = address_info; dst_addr; dst_addr = dst_addr->ai_next) {
+        memcpy(&src_addr, dst_addr->ai_addr, dst_addr->ai_addrlen);
+        if (get_interface(args.interface, dst_addr->ai_addr, dst_addr->ai_addrlen, &src_addr, &src_len) != 0) {
+            continue;
+        }
+
+        printf("Interesting ports on %s (", args.target_host);
+        print_address(dst_addr->ai_addr);
+        printf("):\nPORT STATE\n");
+
+        for_each_port(args.tcp_ports, tcp_scan, args.wait_time_millis, (struct sockaddr *)&src_addr, src_len, dst_addr->ai_addr, dst_addr->ai_addrlen);
+        for_each_port(args.udp_ports, udp_scan, args.wait_time_millis, (struct sockaddr *)&src_addr, src_len, dst_addr->ai_addr, dst_addr->ai_addrlen);
+        break;
     }
 
+    freeaddrinfo(address_info);
     args_free(&args);
 
     return 0;
 }
 
-int print_interfaces() {
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_if_t *interfaces;
-    
-    // Get a list of available network interfaces
-    if (pcap_findalldevs(&interfaces, errbuf) == -1) {
-        fprintf(stderr, "Error finding devices: %s\n", errbuf);
-        return 1;
+void for_each_port(
+    Ports ports, 
+    ScanFunc scanner, 
+    unsigned timeout, 
+    struct sockaddr *src_addr, socklen_t src_len,
+    struct sockaddr *dst_addr, socklen_t dst_len
+) {
+    switch (ports.type) {
+        case PortType_Range:
+            for (uint16_t port = ports.data.range.from; port <= ports.data.range.to; port++) {
+                scanner(src_addr, src_len, dst_addr, dst_len, port, timeout);
+            }
+            break;
+
+        case PortType_Specific:
+            for (size_t i = 0; i < ports.data.specific.count; i++) {
+                scanner(src_addr, src_len, dst_addr, dst_len, ports.data.specific.ports[i], timeout);
+            }
+            break;
+
+        case PortType_None:
+            break;
     }
-
-    // Print the list of interfaces
-    printf("Available network interfaces:\n");
-    pcap_if_t *interface = interfaces;
-    while (interface) {
-        printf("- %s\n", interface->name);
-        interface = interface->next;
-    }
-
-    // Free the memory allocated for the interface list
-    pcap_freealldevs(interfaces);
-    return 0;
-}
-
-void tcp_scan(const char *target, uint16_t port, int timeout) {
-    printf("TCP: %s:%d (%dms)\n", target, port, timeout);
-    // TODO
-}
-
-void udp_scan(const char *target, uint16_t port, int timeout) {
-    printf("UDP: %s:%d (%dms)\n", target, port, timeout);
-    // TODO
 }
