@@ -43,8 +43,7 @@ struct pseudo_header_ipv6 {
 int print_interfaces();
 void print_address(struct sockaddr *);
 
-int make_pseudo_header(uint8_t *buffer, struct sockaddr *src, struct sockaddr *dst, uint8_t protocol, uint32_t len);
-uint16_t checksum(uint16_t *pseudo_header, int pseudo_header_len, uint16_t *buf, int buf_len);
+uint16_t checksum(uint8_t *buf, int buf_len, struct sockaddr *src_addr, struct sockaddr *dst_addr, uint8_t protocol);
 
 int get_interface(
     const char *interface_name, 

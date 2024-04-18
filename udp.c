@@ -19,28 +19,19 @@
 #define SOURCE_PORT 49152 //1st ephemeral port
 #define NOF_RETRANSMISSION 3
 
-int make_header(char *packet, struct sockaddr *src, struct sockaddr *dst, uint16_t port) {
+int make_header(uint8_t *packet, struct sockaddr *src_addr, struct sockaddr *dst_addr, uint16_t port) {
     struct udphdr *udp_header = (struct udphdr *)packet;
     udp_header->uh_sport = htons(SOURCE_PORT);
     udp_header->uh_dport = htons(port);
     udp_header->uh_ulen = htons(sizeof(struct udphdr)); // only the header len
     udp_header->uh_sum = 0; // 0 for now, will be check with pseudo header later
                               
-    /// size of maximum pseudo header is 288 (IPv6)
-    uint8_t pseudo_header[288] = {0};
-    int pseudo_header_len = make_pseudo_header(
-        pseudo_header, 
-        src, 
-        dst, 
-        IPPROTO_UDP, 
-        sizeof(struct udphdr)
-    );
-
     udp_header->uh_sum = checksum(
-        (uint16_t *)pseudo_header, 
-        pseudo_header_len, 
-        (uint16_t *)udp_header, 
-        sizeof(struct udphdr)
+        packet, 
+        sizeof(struct udphdr),
+        src_addr,
+        dst_addr,
+        IPPROTO_UDP
     );
 
     return sizeof(struct udphdr);
@@ -69,7 +60,7 @@ void udp_scan(
         return;
     }
 
-    char packet[PACKET_LEN];
+    uint8_t packet[PACKET_LEN];
     int packet_size = make_header(packet, src_addr, dst_addr, port);
 
     int res = sendto(sockfd, packet, packet_size, 0, dst_addr,  dst_len);
@@ -135,10 +126,13 @@ void udp_scan(
                 break;
             }
 
-            // Process the received ICMP packet
-            struct ip *ip_header = (struct ip *)recv_packet;
-            size_t ip_header_length = ip_header->ip_hl * 4;
-            struct icmp *icmp_packet = (struct icmp *)(recv_packet + ip_header_length);
+            struct icmp *icmp_packet = (struct icmp *)bytes_received;
+
+            if (src_addr->sa_family == AF_INET) {
+                struct ip *ip_header = (struct ip *)recv_packet;
+                size_t ip_header_length = ip_header->ip_hl * 4;
+                icmp_packet = (struct icmp *)(recv_packet + ip_header_length);
+            }
 
             if (icmp_packet->icmp_type != ICMP_UNREACH) {
                 // Received ICMP packet, but not of type 3\n

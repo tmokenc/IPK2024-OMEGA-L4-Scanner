@@ -14,7 +14,7 @@
 #define PACKET_LEN 1 << 13
 #define SOURCE_PORT 57489
 
-int create_header(char *packet, struct sockaddr *src_addr, struct sockaddr *dst_addr, uint16_t port) {
+int create_header(uint8_t *packet, struct sockaddr *src_addr, struct sockaddr *dst_addr, uint16_t port) {
     struct tcphdr *tcp_header = (struct tcphdr *)packet;
 
     tcp_header->th_sport = htons(SOURCE_PORT); // Source port
@@ -27,20 +27,12 @@ int create_header(char *packet, struct sockaddr *src_addr, struct sockaddr *dst_
     tcp_header->th_sum = 0; // Checksum (will be computed later)
     tcp_header->th_urp = 0; // Urgent pointer
     
-    uint8_t pseudo_header[288] = {0};
-    int pseudo_header_len = make_pseudo_header(
-        pseudo_header, 
-        src_addr, 
-        dst_addr, 
-        IPPROTO_TCP, 
-        sizeof(struct tcphdr)
-    );
-    
     tcp_header->th_sum = checksum(
-        (uint16_t *)pseudo_header, 
-        pseudo_header_len, 
-        (uint16_t *)tcp_header, 
-        sizeof(struct tcphdr)
+        packet,
+        sizeof(struct tcphdr),
+        src_addr,
+        dst_addr,
+        IPPROTO_TCP
     );
 
     return 0;
@@ -81,7 +73,7 @@ void tcp_scan(
     }
     
     // Create Header
-    char packet[PACKET_LEN];
+    uint8_t packet[PACKET_LEN];
     int packet_size = create_header(packet, src_addr, dst_addr, port);
     
     // Send packet

@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include "network.h"
 
+int make_pseudo_header(uint8_t *buffer, struct sockaddr *src, struct sockaddr *dst, uint8_t protocol, uint32_t len);
+
 int print_interfaces() {
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_if_t *interfaces;
@@ -87,20 +89,22 @@ void print_address(struct sockaddr *addr) {
     }
 }
 
-uint16_t checksum(uint16_t *pseudo_header, int pseudo_header_len, uint16_t *buf, int buf_len) {
-    uint16_t *_data = malloc(pseudo_header_len + buf_len);
-    uint16_t *data = _data;
+uint16_t checksum(uint8_t *buf, int buf_len, struct sockaddr *src_addr, struct sockaddr *dst_addr, uint8_t protocol) {
+    uint8_t *_data = malloc(buf_len + sizeof(struct pseudo_header_ipv6));
 
-    if (!data) {
-        // Out of Memory
+    if (!_data) {
+        // Out Of Memory
         return 0;
     }
 
-    memcpy(data, pseudo_header, pseudo_header_len);
-    memcpy(data + pseudo_header_len, buf, buf_len);
+    int pseudo_header_len = make_pseudo_header(_data, src_addr, dst_addr, protocol, buf_len);
+
+    memcpy(_data + pseudo_header_len, buf, buf_len);
+
+    uint16_t *data = (uint16_t *)_data;
+    int count = pseudo_header_len + buf_len;
 
     uint32_t sum = 0;
-    int count = pseudo_header_len + buf_len;
 
     while (count > 1) {
         sum += *data++;
@@ -120,12 +124,12 @@ uint16_t checksum(uint16_t *pseudo_header, int pseudo_header_len, uint16_t *buf,
     return (uint16_t)(~sum);
 }
 
-int make_pseudo_header(uint8_t *buffer, struct sockaddr *src, struct sockaddr *dst, uint8_t protocol, uint32_t len) {
-    switch (src->sa_family) {
+int make_pseudo_header(uint8_t *buffer, struct sockaddr *src_addr, struct sockaddr *dst_addr, uint8_t protocol, uint32_t len) {
+    switch (src_addr->sa_family) {
         case AF_INET: {
             struct pseudo_header_ipv4 *header = (struct pseudo_header_ipv4 *)buffer;
-            header->src = ((struct sockaddr_in *)src)->sin_addr.s_addr;
-            header->dst = ((struct sockaddr_in *)dst)->sin_addr.s_addr;
+            header->src = ((struct sockaddr_in *)src_addr)->sin_addr.s_addr;
+            header->dst = ((struct sockaddr_in *)dst_addr)->sin_addr.s_addr;
             header->zeroes = 0;
             header->protocol = protocol;
             header->len = htons(len);
