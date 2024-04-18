@@ -17,34 +17,31 @@
 /// 8 KiB
 #define PACKET_LEN (1 << 13)
 #define SOURCE_PORT 49152 //1st ephemeral port
+#define NOF_RETRANSMISSION 3
 
-struct udp_header {
-    uint16_t src_port;
-    uint16_t dst_port;
-    uint16_t len;
-    uint16_t checksum;
-};
-
-// Structure representing the UDP pseudo-header
-struct pseudo_udp_header {
-    uint32_t src_addr;
-    uint32_t dst_addr;
-    uint8_t zeroes;
-    uint8_t protocol;
-    uint16_t udp_length;
-};
-
-int make_header(char *packet, struct sockaddr *src, socklen_t src_len, struct sockaddr *dst, socklen_t dst_len, uint16_t port) {
-    struct udp_header *udp_header = (struct udp_header *)(packet);
-    udp_header->src_port = htons(SOURCE_PORT);
-    udp_header->dst_port = htons(port);
-    udp_header->len = htons(sizeof(struct udp_header));
-    udp_header->checksum = 0; // Ignore for IPv4
+int make_header(char *packet, struct sockaddr *src, struct sockaddr *dst, uint16_t port) {
+    struct udphdr *udp_header = (struct udphdr *)packet;
+    udp_header->uh_sport = htons(SOURCE_PORT);
+    udp_header->uh_dport = htons(port);
+    udp_header->uh_ulen = htons(sizeof(struct udphdr)); // only the header len
+    udp_header->uh_sum = 0; // 0 for now, will be check with pseudo header later
                               
-    (void)dst;
-    (void)src;
-    (void)dst_len;
-    (void)src_len;
+    /// size of maximum pseudo header is 288 (IPv6)
+    uint8_t pseudo_header[288] = {0};
+    int pseudo_header_len = make_pseudo_header(
+        pseudo_header, 
+        src, 
+        dst, 
+        IPPROTO_UDP, 
+        sizeof(struct udphdr)
+    );
+
+    udp_header->uh_sum = checksum(
+        (uint16_t *)pseudo_header, 
+        pseudo_header_len, 
+        (uint16_t *)udp_header, 
+        sizeof(struct udphdr)
+    );
 
     return sizeof(struct udphdr);
 }
@@ -54,8 +51,11 @@ void udp_scan(
     struct sockaddr *dst_addr, socklen_t dst_len,
     uint16_t port, int timeout
 ) {
-    int sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);
-    int recvfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+    (void)src_len;
+    // int sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);
+    // int recvfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+    int sockfd = socket(src_addr->sa_family, SOCK_RAW, IPPROTO_UDP);
+    int recvfd = socket(src_addr->sa_family, SOCK_RAW, IPPROTO_ICMP);
 
     if (sockfd < 0 || recvfd < 0) {
         perror("socket");
@@ -70,8 +70,8 @@ void udp_scan(
     }
 
     char packet[PACKET_LEN];
-    int packet_size = make_header(packet, src_addr, src_len, dst_addr, dst_len, port);
-    
+    int packet_size = make_header(packet, src_addr, dst_addr, port);
+
     int res = sendto(sockfd, packet, packet_size, 0, dst_addr,  dst_len);
 
     if (res < 0) {
@@ -92,6 +92,7 @@ void udp_scan(
         return;
     }
 
+    int nof_retransmission = 0;
     struct pollfd fd = {0};
 
     fd.fd = recvfd;
@@ -101,10 +102,7 @@ void udp_scan(
 
     while (1) {
         int wait_time = timeout - timestamp_elapsed(start);
-
-        if (wait_time < 0) {
-            wait_time = 0;
-        }
+        if (wait_time < 0) wait_time = 0;
 
         int poll_result = poll(&fd, 1, wait_time);
 
@@ -112,6 +110,18 @@ void udp_scan(
             perror("select");
             break;
         } else if (poll_result == 0) {
+            if (nof_retransmission++ < NOF_RETRANSMISSION) {
+                int res = sendto(sockfd, packet, packet_size, 0, dst_addr,  dst_len);
+                start = timestamp_now();
+
+                if (res < 0) {
+                    perror("sendto");
+                    break;
+                }
+
+                continue;
+            }
+
             // Timeout reached
             printf("%d/udp open\n", port);
             break;
@@ -137,9 +147,7 @@ void udp_scan(
 
             // Check if ICMP packet came from the expected address
             if (memcmp(&((struct sockaddr_in *)&recv_addr)->sin_addr, &((struct sockaddr_in *)dst_addr)->sin_addr, sizeof(struct in_addr)) != 0) {
-                printf("Received ICMP packet from unexpected address\n");
-                print_address(&recv_addr);
-                printf("\n");
+                // Received ICMP packet from unexpected address
                 continue;
             } 
 

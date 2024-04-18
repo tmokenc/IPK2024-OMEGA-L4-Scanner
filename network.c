@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "network.h"
 
 int print_interfaces() {
     char errbuf[PCAP_ERRBUF_SIZE];
@@ -86,14 +87,68 @@ void print_address(struct sockaddr *addr) {
     }
 }
 
-uint16_t checksum(uint16_t *buf, int nwords) {
-    unsigned long sum;
+uint16_t checksum(uint16_t *pseudo_header, int pseudo_header_len, uint16_t *buf, int buf_len) {
+    uint16_t *_data = malloc(pseudo_header_len + buf_len);
+    uint16_t *data = _data;
 
-    for(sum=0; nwords>0; nwords--) {
-        sum += *buf++;
+    if (!data) {
+        // Out of Memory
+        return 0;
     }
 
-    sum = (sum >> 16) + (sum &0xffff);
-    sum += (sum >> 16);
+    memcpy(data, pseudo_header, pseudo_header_len);
+    memcpy(data + pseudo_header_len, buf, buf_len);
+
+    uint32_t sum = 0;
+    int count = pseudo_header_len + buf_len;
+
+    while (count > 1) {
+        sum += *data++;
+        count -= 2;
+    }
+
+    if (count > 0) {
+        sum += ((*data)&htons(0xFF00));
+    }
+
+    // Fold 32-bit sum to 16 bits
+    while (sum >> 16) {
+        sum = (sum & 0xFFFF) + (sum >> 16);
+    }
+
+    free(_data);
     return (uint16_t)(~sum);
+}
+
+int make_pseudo_header(uint8_t *buffer, struct sockaddr *src, struct sockaddr *dst, uint8_t protocol, uint32_t len) {
+    switch (src->sa_family) {
+        case AF_INET: {
+            struct pseudo_header_ipv4 *header = (struct pseudo_header_ipv4 *)buffer;
+            header->src = ((struct sockaddr_in *)src)->sin_addr.s_addr;
+            header->dst = ((struct sockaddr_in *)dst)->sin_addr.s_addr;
+            header->zeroes = 0;
+            header->protocol = protocol;
+            header->len = htons(len);
+
+            return sizeof(struct pseudo_header_ipv4);
+        }
+
+        case AF_INET6: {
+            struct sockaddr_in6 *src = src;
+            struct sockaddr_in6 *dst = dst;
+            struct pseudo_header_ipv6 *header = (struct pseudo_header_ipv6 *)buffer;
+
+            memcpy(header->src, src->sin6_addr.s6_addr, sizeof(header->src));
+            memcpy(header->dst, dst->sin6_addr.s6_addr, sizeof(header->dst));
+            memset(header->zeroes, 0, sizeof(header->zeroes));
+            header->len = len;
+            header->protocol = protocol;
+
+            return sizeof(struct pseudo_header_ipv6);
+        }
+
+        default:
+            // huh????
+            return -1;
+    }
 }
