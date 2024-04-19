@@ -11,7 +11,29 @@
 #include <unistd.h>
 #include "network.h"
 
-int make_pseudo_header(uint8_t *buffer, struct sockaddr *src, struct sockaddr *dst, uint8_t protocol, uint32_t len);
+/**
+ * Pseudo header for UDP/TCP IPv4 for checksum
+ */
+struct pseudo_header_ipv4 {
+    uint32_t src;
+    uint32_t dst;
+    uint8_t zeroes;
+    uint8_t protocol;
+    uint16_t len;
+};
+
+/**
+ * Pseudo header for UDP/TCP IPv6 for checksum
+ */
+struct pseudo_header_ipv6 {
+    uint64_t src[2];
+    uint64_t dst[2];
+    uint32_t len;
+    uint8_t zeroes[3];
+    uint8_t protocol;
+};
+
+int make_pseudo_header(uint8_t *buffer, struct sockaddr *src, struct sockaddr *dst, uint8_t protocol, uint16_t len);
 
 int print_interfaces() {
     char errbuf[PCAP_ERRBUF_SIZE];
@@ -38,12 +60,30 @@ int print_interfaces() {
 }
 
 int get_interface(const char *interface_name, struct sockaddr *dst_addr, socklen_t dst_addr_len, struct sockaddr_storage *src_addr, socklen_t *src_addr_len) {
+    printf("Socket %d\n", dst_addr->sa_family);
     int sockfd = socket(dst_addr->sa_family, SOCK_DGRAM, IPPROTO_UDP);
-    setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE, interface_name, strlen(interface_name));
+    int res = setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE, interface_name, strlen(interface_name));
+
+    if (res < 0) {
+        perror("setsockopt");
+        return 2;
+    }
 
     struct sockaddr_storage addr;
     memcpy(&addr, dst_addr, dst_addr_len);
-    ((struct sockaddr_in *)&addr)->sin_port = htons(9); //9 is discard port
+    switch (dst_addr->sa_family) {
+        case AF_INET:
+            ((struct sockaddr_in *)&addr)->sin_port = htons(9); //9 is discard port
+            break;
+
+        case AF_INET6:
+            ((struct sockaddr_in6 *)&addr)->sin6_port = htons(9); //9 is discard port
+            break;
+
+        default:
+            // Unreachable
+            return -3;
+    }
 
     if (connect(sockfd, (struct sockaddr *)&addr, dst_addr_len) < 0) {
         perror("connect");
@@ -90,41 +130,45 @@ void print_address(struct sockaddr *addr) {
 }
 
 uint16_t checksum(uint8_t *buf, int buf_len, struct sockaddr *src_addr, struct sockaddr *dst_addr, uint8_t protocol) {
-    uint8_t *_data = malloc(buf_len + sizeof(struct pseudo_header_ipv6));
+    uint8_t *data = malloc(buf_len + sizeof(struct pseudo_header_ipv6));
 
-    if (!_data) {
+    memset(data, 0, buf_len + sizeof(struct pseudo_header_ipv6));
+
+    if (!data) {
         // Out Of Memory
         return 0;
     }
 
-    int pseudo_header_len = make_pseudo_header(_data, src_addr, dst_addr, protocol, buf_len);
+    int pseudo_header_len = make_pseudo_header(data, src_addr, dst_addr, protocol, buf_len);
 
-    memcpy(_data + pseudo_header_len, buf, buf_len);
+    memcpy(data + pseudo_header_len, buf, buf_len);
 
-    uint16_t *data = (uint16_t *)_data;
-    int count = pseudo_header_len + buf_len;
+    int size = (pseudo_header_len + buf_len);
 
     uint32_t sum = 0;
+    int i;
 
-    while (count > 1) {
-        sum += *data++;
-        count -= 2;
+    for (i = 0; i < size - 1; i += 2) {
+        uint16_t word16 = *(uint16_t *)&data[i];
+        sum += word16;
     }
-
-    if (count > 0) {
-        sum += ((*data)&htons(0xFF00));
+    
+    // Handle odd-sized case.
+    if (size & 1) {
+        uint16_t word16 = (uint8_t)data[i];  // don't sign extend
+        sum += word16;
     }
-
-    // Fold 32-bit sum to 16 bits
+    
+    // Add the overflowing (over 16-bit) bits to the 16 value.
     while (sum >> 16) {
         sum = (sum & 0xFFFF) + (sum >> 16);
     }
 
-    free(_data);
+    free(data);
     return (uint16_t)(~sum);
 }
 
-int make_pseudo_header(uint8_t *buffer, struct sockaddr *src_addr, struct sockaddr *dst_addr, uint8_t protocol, uint32_t len) {
+int make_pseudo_header(uint8_t *buffer, struct sockaddr *src_addr, struct sockaddr *dst_addr, uint8_t protocol, uint16_t len) {
     switch (src_addr->sa_family) {
         case AF_INET: {
             struct pseudo_header_ipv4 *header = (struct pseudo_header_ipv4 *)buffer;
