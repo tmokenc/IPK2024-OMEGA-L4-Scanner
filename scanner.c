@@ -35,14 +35,6 @@ int create_socket(Scanner *scanner, const char *interface, int send_type, int re
         return -1;
     }
 
-    const int enable = 1;
-    if (setsockopt(scanner->recvfd, IPPROTO_IP, IP_HDRINCL, &enable, sizeof(int))) {
-        perror("ERR setsockopt");
-        close(scanner->sendfd);
-        close(scanner->recvfd);
-        return -1;
-    }
-
     /// Set receiving socket non-blocking for using with poll.
     int flags = fcntl(scanner->recvfd, F_GETFL, 0);
     if (fcntl(scanner->recvfd, F_SETFL, flags | O_NONBLOCK) < 0) {
@@ -52,6 +44,7 @@ int create_socket(Scanner *scanner, const char *interface, int send_type, int re
         return -1;
     }
 
+    /// Bind interface to the sockets
     int send_bind = setsockopt(scanner->sendfd, SOL_SOCKET, SO_BINDTODEVICE, interface, strlen(interface));
     int recv_bind = setsockopt(scanner->recvfd, SOL_SOCKET, SO_BINDTODEVICE, interface, strlen(interface));
 
