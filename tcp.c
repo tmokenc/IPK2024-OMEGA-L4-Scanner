@@ -26,7 +26,7 @@ int tcp_make_header(Scanner *scanner, uint8_t *packet, uint16_t port) {
     tcp_header->th_win = htons(0xFFFF); // Window size
     tcp_header->th_sum = 0; // Checksum (will be computed later)
     tcp_header->th_urp = 0; // Urgent pointer
-    
+
     tcp_header->th_sum = checksum(
         packet,
         sizeof(struct tcphdr),

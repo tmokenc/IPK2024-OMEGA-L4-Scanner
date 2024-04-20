@@ -97,11 +97,14 @@ void scanner_close(Scanner *scanner) {
 }
 
 enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
+    /// Set dst port to the scanning port
     set_port(scanner->dst_addr, port);
 
+    /// Make header
     uint8_t packet[PACKET_LEN];
     int packet_size = scanner->make_header(scanner, packet, port);
 
+    /// Send packet
     int res = sendto(scanner->sendfd, packet, packet_size, 0, scanner->dst_addr, scanner->dst_addr_len);
 
     if (res < 0) {
@@ -109,6 +112,7 @@ enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
         return Result_Error;
     }
 
+    /// Start receiving packet
     uint8_t recv_packet[PACKET_LEN];
 
     struct pollfd fd = {0};
@@ -141,8 +145,9 @@ enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
             if (memcmp(&((struct sockaddr_in *)&recv_addr)->sin_addr, &((struct sockaddr_in *)scanner->dst_addr)->sin_addr, sizeof(struct in_addr)) != 0) {
                 // Received packet from unexpected address
                 continue;
-            } 
+            }
 
+            // Checking packet
             int ip_header_length = 0;
 
             if (scanner->src_addr->sa_family == AF_INET) {

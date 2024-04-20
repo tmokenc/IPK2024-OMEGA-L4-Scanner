@@ -10,8 +10,10 @@
 
 #include <stdint.h>
 #include <sys/socket.h>
+#include <stdbool.h>
 
 int print_interfaces();
+bool is_valid_interface(const char *name);
 void print_address(struct sockaddr *);
 
 void set_port(struct sockaddr *addr, uint16_t port);

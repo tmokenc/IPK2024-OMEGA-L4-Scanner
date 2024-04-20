@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "network.h"
+#include <net/if.h>
 
 /**
  * Pseudo header for UDP/TCP IPv4 for checksum
@@ -70,7 +71,7 @@ int print_interfaces() {
     
     // Get a list of available network interfaces
     if (pcap_findalldevs(&interfaces, errbuf) == -1) {
-        fprintf(stderr, "Error finding devices: %s\n", errbuf);
+        fprintf(stderr, "ERR finding devices: %s\n", errbuf);
         return 1;
     }
 
@@ -88,38 +89,40 @@ int print_interfaces() {
 
 }
 
+bool is_valid_interface(const char *name) {
+    return if_nametoindex(name);
+}
+
 int get_interface(const char *interface_name, struct sockaddr *dst_addr, socklen_t dst_addr_len, struct sockaddr_storage *src_addr, socklen_t *src_addr_len) {
     int sockfd = socket(dst_addr->sa_family, SOCK_DGRAM, IPPROTO_UDP);
+
+    if (sockfd < 0) {
+        perror("ERR getting interface socket");
+        return 1;
+    }
+
+
     int res = setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE, interface_name, strlen(interface_name));
 
     if (res < 0) {
-        perror("setsockopt");
+        perror("ERR getting interface setsockopt");
+        close(sockfd);
         return 2;
     }
 
     struct sockaddr_storage addr;
     memcpy(&addr, dst_addr, dst_addr_len);
-    switch (dst_addr->sa_family) {
-        case AF_INET:
-            ((struct sockaddr_in *)&addr)->sin_port = htons(9); //9 is discard port
-            break;
-
-        case AF_INET6:
-            ((struct sockaddr_in6 *)&addr)->sin6_port = htons(9); //9 is discard port
-            break;
-
-        default:
-            // Unreachable
-            return -3;
-    }
+    set_port((struct sockaddr *)&addr, 9); // Discard port
 
     if (connect(sockfd, (struct sockaddr *)&addr, dst_addr_len) < 0) {
-        perror("connect");
+        perror("ERR getting interface connect");
+        close(sockfd);
         return -1;
     }
 
     if (getsockname(sockfd, (struct sockaddr *)src_addr, src_addr_len)) {
-        perror("getsockname");
+        perror("ERR getsockname");
+        close(sockfd);
         return -2;
     }
 
@@ -135,7 +138,7 @@ void print_address(struct sockaddr *addr) {
             if (inet_ntop(AF_INET, &ipv4_address->sin_addr, ip_address, INET_ADDRSTRLEN)) {
               printf("%s", ip_address);
             } else {
-              perror("inet_ntop");
+              perror("ERR inet_ntop");
             }
             break;
         }
@@ -146,13 +149,12 @@ void print_address(struct sockaddr *addr) {
             if (inet_ntop(AF_INET6, &ipv6_address->sin6_addr, ip_address, INET6_ADDRSTRLEN)) {
               printf("%s", ip_address);
             } else {
-              perror("inet_ntop");
+              perror("ERR inet_ntop");
             }
             break;
         }
 
         default:
-            // fprintf(stderr, "Unsupported address family\n");
             break;
     }
 }

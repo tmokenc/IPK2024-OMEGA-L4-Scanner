@@ -23,9 +23,9 @@ int udp_make_header(Scanner *scanner, uint8_t *packet, uint16_t port) {
     udp_header->uh_dport = htons(port);
     udp_header->uh_ulen = htons(sizeof(struct udphdr)); // only the header len
     udp_header->uh_sum = 0; // 0 for now, will be check with pseudo header later
-                              
+
     udp_header->uh_sum = checksum(
-        packet, 
+        packet,
         sizeof(struct udphdr),
         scanner->src_addr,
         scanner->dst_addr,
