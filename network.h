@@ -11,14 +11,11 @@
 #include <stdint.h>
 #include <sys/socket.h>
 
-typedef void (*ScanFunc)(
-    struct sockaddr *src_addr, socklen_t src_len,
-    struct sockaddr *dst_addr, socklen_t dst_len,
-    uint16_t port, int timeout
-);
-
 int print_interfaces();
 void print_address(struct sockaddr *);
+
+void set_port(struct sockaddr *addr, uint16_t port);
+uint16_t get_port(struct sockaddr *addr);
 
 uint16_t checksum(uint8_t *buf, int buf_len, struct sockaddr *src_addr, struct sockaddr *dst_addr, uint8_t protocol);
 

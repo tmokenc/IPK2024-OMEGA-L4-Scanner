@@ -11,13 +11,12 @@
 #include <pcap.h>
 #include "args.h"
 #include "network.h"
-#include "tcp.h"
-#include "udp.h"
+#include "scanner.h"
 
 void for_each_port(
+    Args args,
     Ports ports, 
-    ScanFunc scanner, 
-    unsigned timeout, 
+    ScannerInitFunc scanner_init, 
     struct sockaddr *src_addr, socklen_t src_len,
     struct sockaddr *dst_addr, socklen_t dst_len
 );
@@ -42,6 +41,7 @@ int main(int argc, char **argv) {
 
     if (getaddrinfo(args.target_host, NULL, NULL, &address_info) != 0) {
         fprintf(stderr, "Cannot get the address info of %s\n", args.target_host);
+        return 1;
     }
 
     struct sockaddr_storage src_addr = {0};
@@ -58,8 +58,8 @@ int main(int argc, char **argv) {
         print_address(dst_addr->ai_addr);
         printf("):\nPORT STATE\n");
 
-        for_each_port(args.tcp_ports, tcp_scan, args.wait_time_millis, (struct sockaddr *)&src_addr, src_len, dst_addr->ai_addr, dst_addr->ai_addrlen);
-        for_each_port(args.udp_ports, udp_scan, args.wait_time_millis, (struct sockaddr *)&src_addr, src_len, dst_addr->ai_addr, dst_addr->ai_addrlen);
+        for_each_port(args, args.tcp_ports, scanner_init_tcp, (struct sockaddr *)&src_addr, src_len, dst_addr->ai_addr, dst_addr->ai_addrlen);
+        for_each_port(args, args.udp_ports, scanner_init_udp, (struct sockaddr *)&src_addr, src_len, dst_addr->ai_addr, dst_addr->ai_addrlen);
         break;
     }
 
@@ -70,26 +70,51 @@ int main(int argc, char **argv) {
 }
 
 void for_each_port(
+    Args args,
     Ports ports, 
-    ScanFunc scanner, 
-    unsigned timeout, 
+    ScannerInitFunc scanner_init, 
     struct sockaddr *src_addr, socklen_t src_len,
     struct sockaddr *dst_addr, socklen_t dst_len
 ) {
+    Scanner scanner = {0};
+    bool initialized = false;
     switch (ports.type) {
         case PortType_Range:
             for (uint16_t port = ports.data.range.from; port <= ports.data.range.to; port++) {
-                scanner(src_addr, src_len, dst_addr, dst_len, port, timeout);
+                if (!initialized) {
+                    int res = scanner_init(&scanner, args.interface, src_addr, src_len, dst_addr, dst_len);
+
+                    if (res != 0) {
+                        printf("Something went wrong\n");
+                    }
+
+                    initialized = true;
+                }
+
+                scanner_scan(&scanner, port, args.wait_time_millis);
             }
             break;
 
         case PortType_Specific:
             for (size_t i = 0; i < ports.data.specific.count; i++) {
-                scanner(src_addr, src_len, dst_addr, dst_len, ports.data.specific.ports[i], timeout);
+                if (!initialized) {
+                    int res = scanner_init(&scanner, args.interface, src_addr, src_len, dst_addr, dst_len);
+                    if (res != 0) {
+                        printf("Something went wrong\n");
+                    }
+
+                    initialized = true;
+                }
+
+                scanner_scan(&scanner, ports.data.specific.ports[i], args.wait_time_millis);
             }
             break;
 
         case PortType_None:
             break;
+    }
+
+    if (initialized) {
+        scanner_close(&scanner);
     }
 }

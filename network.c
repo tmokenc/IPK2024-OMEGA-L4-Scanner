@@ -35,6 +35,35 @@ struct pseudo_header_ipv6 {
 
 int make_pseudo_header(uint8_t *buffer, struct sockaddr *src, struct sockaddr *dst, uint8_t protocol, uint16_t len);
 
+void set_port(struct sockaddr *addr, uint16_t port) {
+    switch (addr->sa_family) {
+        case AF_INET:
+            ((struct sockaddr_in *)addr)->sin_port = htons(port);
+            break;
+
+        case AF_INET6:
+            ((struct sockaddr_in6 *)addr)->sin6_port = htons(port);
+            break;
+
+        default:
+            break;
+    }
+}
+
+uint16_t get_port(struct sockaddr *addr) {
+    switch (addr->sa_family) {
+        case AF_INET:
+            return ntohs(((struct sockaddr_in *)addr)->sin_port);
+
+        case AF_INET6:
+            return ntohs(((struct sockaddr_in6 *)addr)->sin6_port);
+
+        default:
+            return 0;
+    }
+}
+
+
 int print_interfaces() {
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_if_t *interfaces;
@@ -60,7 +89,6 @@ int print_interfaces() {
 }
 
 int get_interface(const char *interface_name, struct sockaddr *dst_addr, socklen_t dst_addr_len, struct sockaddr_storage *src_addr, socklen_t *src_addr_len) {
-    printf("Socket %d\n", dst_addr->sa_family);
     int sockfd = socket(dst_addr->sa_family, SOCK_DGRAM, IPPROTO_UDP);
     int res = setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE, interface_name, strlen(interface_name));
 

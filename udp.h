@@ -2,20 +2,17 @@
  * @file udp.h
  * @author Le Duy Nguyen (xnguye27)
  * @date 07/04/2024
- * @brief Define function for scanning UDP port
+ * @brief Define function for scanning UDP port using `Scanner` interface.
  */
 
 #ifndef UDP_H
 #define UDP_H
 
-#include <stdint.h>
-#include <sys/socket.h>
+#include "scanner.h"
 
-void udp_scan(
-    struct sockaddr *src_addr, socklen_t src_len,
-    struct sockaddr *dst_addr, socklen_t dst_len,
-    uint16_t port, int timeout
-);
+int udp_make_header(Scanner *scanner, uint8_t *packet, uint16_t port);
+enum result udp_on_timeout(Scanner *scanner);
+enum result udp_handle_packet(Scanner *scanner, uint8_t *packet, size_t packet_len);
 
 #endif
 
