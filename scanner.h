@@ -39,6 +39,8 @@ typedef struct scanner {
 
     /// Number of retransmissions has done
     int nof_retransmissions;
+    /// Currently scanning port
+    uint16_t current_port;
 } Scanner;
 
 int scanner_init_tcp(Scanner *scanner, const char *interface, struct sockaddr *src_addr, int src_addr_len, struct sockaddr *dst_addr, int dst_addr_len);

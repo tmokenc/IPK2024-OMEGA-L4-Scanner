@@ -212,8 +212,8 @@ int make_pseudo_header(uint8_t *buffer, struct sockaddr *src_addr, struct sockad
         }
 
         case AF_INET6: {
-            struct sockaddr_in6 *src = src;
-            struct sockaddr_in6 *dst = dst;
+            struct sockaddr_in6 *src = (struct sockaddr_in6 *)src_addr;
+            struct sockaddr_in6 *dst = (struct sockaddr_in6 *)dst_addr;
             struct pseudo_header_ipv6 *header = (struct pseudo_header_ipv6 *)buffer;
 
             memcpy(&header->src, &src->sin6_addr, sizeof(struct in6_addr));

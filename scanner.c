@@ -84,7 +84,9 @@ int scanner_init_udp(Scanner *scanner, const char *interface, struct sockaddr *s
     scanner->on_timeout = udp_on_timeout;
     scanner->handle_packet = udp_handle_packet;
 
-    if (create_socket(scanner, interface, IPPROTO_UDP, IPPROTO_ICMP) != 0) {
+    int icmp_proto = dst_addr->sa_family == AF_INET6 ? IPPROTO_ICMPV6 : IPPROTO_ICMP;
+
+    if (create_socket(scanner, interface, IPPROTO_UDP, icmp_proto) != 0) {
         return -1;
     }
 
@@ -98,7 +100,8 @@ void scanner_close(Scanner *scanner) {
 
 enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
     /// Set dst port to the scanning port
-    set_port((struct sockaddr *)&scanner->dst_addr, port);
+    /// Cannot set directly in the `dst_addr`, it gave me invalid argument
+    scanner->current_port = port;
 
     /// Make header
     uint8_t packet[PACKET_LEN];
@@ -142,17 +145,22 @@ enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
             socklen_t recv_addr_len = sizeof(recv_addr);
             int packet_len = recvfrom(scanner->recvfd, recv_packet, PACKET_LEN, 0, (struct sockaddr *)&recv_addr, &recv_addr_len);
 
-            if (memcmp(&((struct sockaddr_in *)&recv_addr)->sin_addr, &((struct sockaddr_in *)&scanner->dst_addr)->sin_addr, sizeof(struct in_addr)) != 0) {
-                // Received packet from unexpected address
-                continue;
-            }
-
             // Checking packet
             int ip_header_length = 0;
 
-            if (scanner->src_addr.ss_family == AF_INET) {
+            if (scanner->dst_addr.ss_family == AF_INET) {
+                if (memcmp(&((struct sockaddr_in *)&recv_addr)->sin_addr, &((struct sockaddr_in *)&scanner->dst_addr)->sin_addr, sizeof(struct in_addr)) != 0) {
+                    // Received packet from unexpected address
+                    continue;
+                }
+
                 struct ip *ip_header = (struct ip *)recv_packet;
                 ip_header_length = ip_header->ip_hl * 4;
+            } else {
+                if (memcmp(&((struct sockaddr_in6 *)&recv_addr)->sin6_addr, &((struct sockaddr_in6 *)&scanner->dst_addr)->sin6_addr, sizeof(struct in6_addr)) != 0) {
+                    // Received packet from unexpected address
+                    continue;
+                }
             }
 
             uint8_t *packet = recv_packet + ip_header_length;

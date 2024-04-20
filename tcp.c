@@ -54,7 +54,13 @@ enum result tcp_handle_packet(Scanner *scanner, uint8_t *packet, size_t packet_l
     }
 
     struct tcphdr *tcp_header = (struct tcphdr *)packet;
-    uint16_t port = get_port((struct sockaddr *)&scanner->dst_addr);
+
+    uint16_t port = ntohs(tcp_header->th_sport);
+
+    if (port != scanner->current_port) {
+        /// Not the port we want
+        return Result_None;
+    }
 
     // Check TCP flags to determine port status
     if (tcp_header->th_flags & TH_RST) {
