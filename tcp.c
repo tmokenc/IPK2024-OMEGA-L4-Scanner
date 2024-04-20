@@ -30,8 +30,8 @@ int tcp_make_header(Scanner *scanner, uint8_t *packet, uint16_t port) {
     tcp_header->th_sum = checksum(
         packet,
         sizeof(struct tcphdr),
-        scanner->src_addr,
-        scanner->dst_addr,
+        (struct sockaddr *)&scanner->src_addr,
+        (struct sockaddr *)&scanner->dst_addr,
         IPPROTO_TCP
     );
 
@@ -41,7 +41,7 @@ int tcp_make_header(Scanner *scanner, uint8_t *packet, uint16_t port) {
 enum result tcp_on_timeout(Scanner *scanner) {
     if (scanner->nof_retransmissions >= 1) {
         // --> timeout = filtered
-        printf("%d/tcp filtered\n", get_port(scanner->dst_addr));
+        printf("%d/tcp filtered\n", get_port((struct sockaddr *)&scanner->dst_addr));
         return Result_Done;
     }
 
@@ -54,7 +54,7 @@ enum result tcp_handle_packet(Scanner *scanner, uint8_t *packet, size_t packet_l
     }
 
     struct tcphdr *tcp_header = (struct tcphdr *)packet;
-    uint16_t port = get_port(scanner->dst_addr);
+    uint16_t port = get_port((struct sockaddr *)&scanner->dst_addr);
 
     // Check TCP flags to determine port status
     if (tcp_header->th_flags & TH_RST) {

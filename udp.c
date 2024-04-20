@@ -27,8 +27,8 @@ int udp_make_header(Scanner *scanner, uint8_t *packet, uint16_t port) {
     udp_header->uh_sum = checksum(
         packet,
         sizeof(struct udphdr),
-        scanner->src_addr,
-        scanner->dst_addr,
+        (struct sockaddr *)&scanner->src_addr,
+        (struct sockaddr *)&scanner->dst_addr,
         IPPROTO_UDP
     );
 
@@ -40,7 +40,7 @@ enum result udp_on_timeout(Scanner *scanner) {
         return Result_Retranmission;
     }
 
-    printf("%d/udp open\n", get_port(scanner->dst_addr));
+    printf("%d/udp open\n", get_port((struct sockaddr *)&scanner->dst_addr));
     return Result_Done;
 }
 
@@ -56,6 +56,6 @@ enum result udp_handle_packet(Scanner *scanner, uint8_t *packet, size_t packet_l
         return Result_None;
     }
 
-    printf("%d/udp closed\n", get_port(scanner->dst_addr));
+    printf("%d/udp closed\n", get_port((struct sockaddr *)&scanner->dst_addr));
     return Result_Done;
 }

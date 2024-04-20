@@ -25,8 +25,8 @@
 uint16_t SOURCE_PORT = 57489;
 
 int create_socket(Scanner *scanner, const char *interface, int send_type, int recv_type) {
-    scanner->sendfd = socket(scanner->src_addr->sa_family, SOCK_RAW, send_type);
-    scanner->recvfd = socket(scanner->src_addr->sa_family, SOCK_RAW, recv_type);
+    scanner->sendfd = socket(scanner->src_addr.ss_family, SOCK_RAW, send_type);
+    scanner->recvfd = socket(scanner->src_addr.ss_family, SOCK_RAW, recv_type);
 
     if (scanner->sendfd < 0 || scanner->recvfd < 0) {
         close(scanner->sendfd);
@@ -59,8 +59,8 @@ int create_socket(Scanner *scanner, const char *interface, int send_type, int re
 
 int scanner_init_tcp(Scanner *scanner, const char *interface, struct sockaddr *src_addr, int src_addr_len, struct sockaddr *dst_addr, int dst_addr_len) {
     set_port(src_addr, SOURCE_PORT);
-    scanner->src_addr = src_addr;
-    scanner->dst_addr = dst_addr;
+    memcpy(&scanner->src_addr, src_addr, src_addr_len);
+    memcpy(&scanner->dst_addr, dst_addr, dst_addr_len);
     scanner->src_addr_len = src_addr_len;
     scanner->dst_addr_len = dst_addr_len;
     scanner->make_header = tcp_make_header;
@@ -76,8 +76,8 @@ int scanner_init_tcp(Scanner *scanner, const char *interface, struct sockaddr *s
 
 int scanner_init_udp(Scanner *scanner, const char *interface, struct sockaddr *src_addr, int src_addr_len, struct sockaddr *dst_addr, int dst_addr_len) {
     set_port(src_addr, SOURCE_PORT);
-    scanner->src_addr = src_addr;
-    scanner->dst_addr = dst_addr;
+    memcpy(&scanner->src_addr, src_addr, src_addr_len);
+    memcpy(&scanner->dst_addr, dst_addr, dst_addr_len);
     scanner->src_addr_len = src_addr_len;
     scanner->dst_addr_len = dst_addr_len;
     scanner->make_header = udp_make_header;
@@ -98,14 +98,14 @@ void scanner_close(Scanner *scanner) {
 
 enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
     /// Set dst port to the scanning port
-    set_port(scanner->dst_addr, port);
+    set_port((struct sockaddr *)&scanner->dst_addr, port);
 
     /// Make header
     uint8_t packet[PACKET_LEN];
     int packet_size = scanner->make_header(scanner, packet, port);
 
     /// Send packet
-    int res = sendto(scanner->sendfd, packet, packet_size, 0, scanner->dst_addr, scanner->dst_addr_len);
+    int res = sendto(scanner->sendfd, packet, packet_size, 0, (struct sockaddr *)&scanner->dst_addr, scanner->dst_addr_len);
 
     if (res < 0) {
         perror("ERR sendto");
@@ -138,11 +138,11 @@ enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
         if (poll_result == 0) {
             result = scanner->on_timeout(scanner);
         } else {
-            struct sockaddr recv_addr;
+            struct sockaddr_storage recv_addr;
             socklen_t recv_addr_len = sizeof(recv_addr);
-            int packet_len = recvfrom(scanner->recvfd, recv_packet, PACKET_LEN, 0, &recv_addr, &recv_addr_len);
+            int packet_len = recvfrom(scanner->recvfd, recv_packet, PACKET_LEN, 0, (struct sockaddr *)&recv_addr, &recv_addr_len);
 
-            if (memcmp(&((struct sockaddr_in *)&recv_addr)->sin_addr, &((struct sockaddr_in *)scanner->dst_addr)->sin_addr, sizeof(struct in_addr)) != 0) {
+            if (memcmp(&((struct sockaddr_in *)&recv_addr)->sin_addr, &((struct sockaddr_in *)&scanner->dst_addr)->sin_addr, sizeof(struct in_addr)) != 0) {
                 // Received packet from unexpected address
                 continue;
             }
@@ -150,7 +150,7 @@ enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
             // Checking packet
             int ip_header_length = 0;
 
-            if (scanner->src_addr->sa_family == AF_INET) {
+            if (scanner->src_addr.ss_family == AF_INET) {
                 struct ip *ip_header = (struct ip *)recv_packet;
                 ip_header_length = ip_header->ip_hl * 4;
             }
@@ -166,7 +166,7 @@ enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
         }
 
         if (result == Result_Retranmission) {
-            int res = sendto(scanner->sendfd, packet, packet_size, 0, scanner->dst_addr, scanner->dst_addr_len);
+            int res = sendto(scanner->sendfd, packet, packet_size, 0, (struct sockaddr *)&scanner->dst_addr, scanner->dst_addr_len);
 
             if (res < 0) {
                 perror("ERR retranmission sendto");

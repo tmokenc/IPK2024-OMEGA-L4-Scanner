@@ -29,8 +29,8 @@ typedef enum result (*HandlePacketFunc)(struct scanner *scanner, uint8_t *packet
 typedef struct scanner {
     int sendfd;
     int recvfd;
-    struct sockaddr *src_addr;
-    struct sockaddr *dst_addr;
+    struct sockaddr_storage src_addr;
+    struct sockaddr_storage dst_addr;
     int src_addr_len;
     int dst_addr_len;
     MakeHeaderFunc make_header;
