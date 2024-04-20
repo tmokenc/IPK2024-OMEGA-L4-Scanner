@@ -27,8 +27,8 @@ struct pseudo_header_ipv4 {
  * Pseudo header for UDP/TCP IPv6 for checksum
  */
 struct pseudo_header_ipv6 {
-    uint64_t src[2];
-    uint64_t dst[2];
+    struct in6_addr src;
+    struct in6_addr dst;
     uint32_t len;
     uint8_t zeroes[3];
     uint8_t protocol;
@@ -216,10 +216,10 @@ int make_pseudo_header(uint8_t *buffer, struct sockaddr *src_addr, struct sockad
             struct sockaddr_in6 *dst = dst;
             struct pseudo_header_ipv6 *header = (struct pseudo_header_ipv6 *)buffer;
 
-            memcpy(header->src, src->sin6_addr.s6_addr, sizeof(header->src));
-            memcpy(header->dst, dst->sin6_addr.s6_addr, sizeof(header->dst));
+            memcpy(&header->src, &src->sin6_addr, sizeof(struct in6_addr));
+            memcpy(&header->dst, &dst->sin6_addr, sizeof(struct in6_addr));
             memset(header->zeroes, 0, sizeof(header->zeroes));
-            header->len = len;
+            header->len = htonl((uint32_t)len);
             header->protocol = protocol;
 
             return sizeof(struct pseudo_header_ipv6);
