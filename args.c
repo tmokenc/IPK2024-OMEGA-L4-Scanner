@@ -6,6 +6,7 @@
  */
 
 #include "args.h"
+#include "network.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -127,6 +128,11 @@ bool args_parse(Args *result, int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         if (string_match(argv[i], "-i", "--interface")) {
             if (got_interface) return false;
+            if (!is_valid_interface(argv[i + 1])) {
+                fprintf(stderr, "ERR %s is not a valid interface\n", argv[i+1]);
+                return true;
+            }
+
             result->interface = argv[++i];
             got_interface = true;
             continue;
