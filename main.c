@@ -24,12 +24,35 @@ void for_each_port(
 bool is_duplicated_addr(struct sockaddr *addr, struct addrinfo *address_info);
 void print_address(struct sockaddr *addr);
 
+const char *HELP = "UDP/TCP port scanner.\n"
+"Usage: ./ipk-l4-scan <TARGET HOST> [OPTIONS]\n"
+"Example: ./ipk-l4-scan -i eth0 -t 22,80,443 -u 1000-2000 localhost"
+"Note:\n" 
+"  - If no interface is provided, it will print list of interfaces.\n"
+"  - In order for this program to work, it must be running with root priviledge.\n"
+"  - In UDP there is a rate limit of 1000ms per scan to match with the ICMP packet generation rate limit by the kernel."
+"\n"
+"Option:\n"
+"  -i, --interface <INTERFACE> (REQUIRED)  Choose the interface to scan through.\n"
+"  -t, --pt <PORT>                         TCP ports to be scan.\n"
+"  -u, --pu <PORT>                         UDP ports to be scan.\n"
+"  -w, --wait <NUMBER>                     Wait time for response of each scan in milliseconds (default 5000).\n"
+"  -r, --retransmissions <NUMBER>          Number of retransmissions in UDP (default 1).\n"
+"  -l, --ratelimit <NUMBER>                Rate limit per port when scanning UDP in milliseconds (default 1000).\n"
+"  -h, --help                              Print this message.\n"
+"\n";
+
 int main(int argc, char **argv) {
     Args args;
 
     if (!args_parse(&args, argc, argv)) {
         fprintf(stderr, "Cannot parse arguments\n");
         return 1;
+    }
+
+    if (args.is_help) {
+        printf("%s", HELP);
+        return 0;
     }
 
     if (!args.interface) {

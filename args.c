@@ -116,6 +116,7 @@ bool args_parse(Args *result, int argc, char **argv) {
     result->wait_time_millis = 5000;
     result->udp_ratelimit = 1000;
     result->nof_retransmissions = 1;
+    result->is_help = false;
 
     bool got_interface = false;
     bool got_udp_ports = false;
@@ -181,6 +182,11 @@ bool args_parse(Args *result, int argc, char **argv) {
 
             got_ratelimit = true;
             continue;
+        }
+
+        if (string_match(argv[i], "-h", "--help")) {
+            result->is_help = true;
+            return true;
         }
 
         if (got_target_host) return false;
