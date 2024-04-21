@@ -113,12 +113,16 @@ bool args_parse(Args *result, int argc, char **argv) {
     memset(result, 0, sizeof(Args));
 
     result->wait_time_millis = 5000;
+    result->udp_ratelimit = 1000;
+    result->nof_retransmissions = 1;
 
     bool got_interface = false;
     bool got_udp_ports = false;
     bool got_tcp_ports = false;
     bool got_target_host = false;
     bool got_wait = false;
+    bool got_retransmission = false;
+    bool got_ratelimit = false;
 
     for (int i = 1; i < argc; i++) {
         if (string_match(argv[i], "-i", "--interface")) {
@@ -152,6 +156,24 @@ bool args_parse(Args *result, int argc, char **argv) {
             }
 
             got_wait = true;
+            continue;
+        }
+
+        if (string_match(argv[i], "-r", "--retransmissions")) {
+            if (got_retransmission || !parse_number(argv[++i], &result->nof_retransmissions)) {
+                return false;
+            }
+
+            got_retransmission = true;
+            continue;
+        }
+
+        if (string_match(argv[i], "-l", "--ratelimit")) {
+            if (got_ratelimit || !parse_number(argv[++i], &result->udp_ratelimit)) {
+                return false;
+            }
+
+            got_ratelimit = true;
             continue;
         }
 

@@ -57,11 +57,14 @@ typedef struct {
  * @brief Structure to hold parsed command-line arguments.
  */
 typedef struct {
-    char *interface;            /**< Network interface to scan through. */
-    char *target_host;          /**< Target host (IPv4/IPv6 address or domain name). */
-    unsigned wait_time_millis;  /**< Timeout in milliseconds for a single port scan. */
-    Ports udp_ports;            /**< Ports to scan for UDP. */
-    Ports tcp_ports;            /**< Ports to scan for TCP. */
+    char *interface;              /**< Network interface to scan through. */
+    char *target_host;            /**< Target host (IPv4/IPv6 address or domain name). */
+    unsigned wait_time_millis;    /**< Timeout in milliseconds for a single port scan. */
+    Ports udp_ports;              /**< Ports to scan for UDP. */
+    Ports tcp_ports;              /**< Ports to scan for TCP. */
+    bool is_help;                 /**< If the argument require printing help message. */
+    unsigned nof_retransmissions; /**< Number of retranmissions in UDP. */
+    unsigned udp_ratelimit;       /**< Rate limit of UDP scanning per port. */
 } Args;
 
 /**
