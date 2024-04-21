@@ -40,6 +40,8 @@ typedef struct scanner {
 
     /// Number of retransmissions need to be done before timing out
     unsigned nof_retransmissions;
+    /// Rate limit between 2 port scans in milliseconds
+    unsigned rate_limit;
     /// Currently scanning port
     uint16_t current_port;
 } Scanner;

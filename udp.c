@@ -24,6 +24,7 @@ int udp_scanner_setup(Scanner *scanner, const Args *args) {
     scanner->on_timeout = udp_on_timeout;
     scanner->handle_packet = udp_handle_packet;
     scanner->nof_retransmissions = args->nof_retransmissions;
+    scanner->rate_limit = args->udp_ratelimit;
 
     int icmp_proto = scanner->dst_addr->sa_family == AF_INET6 ? IPPROTO_ICMPV6 : IPPROTO_ICMP;
 

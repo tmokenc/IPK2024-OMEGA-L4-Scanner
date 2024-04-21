@@ -7,6 +7,8 @@
 
 #include "scanner.h"
 #include "time.h"
+#include <errno.h>
+#include <time.h>
 #include <unistd.h>
 #include <netinet/ip.h>
 #include <stdio.h>
@@ -35,7 +37,37 @@ void scanner_close(Scanner *scanner) {
     close(scanner->recvfd);
 }
 
+void rate_limit(Scanner *scanner) {
+    static Timestamp LAST_SCAN_ON;
+
+    if (LAST_SCAN_ON) {
+        Timestamp elapsed = timestamp_elapsed(LAST_SCAN_ON);
+        int wait_time = scanner->rate_limit - elapsed;
+
+        if (wait_time > 0) {
+            // sleep for n milliseconds
+            // by Neuron
+            // https://stackoverflow.com/a/1157217
+            struct timespec ts;
+            int res;
+
+            ts.tv_sec = wait_time / 1000;
+            ts.tv_nsec = (wait_time % 1000) * 1000000;
+
+            do {
+                res = nanosleep(&ts, &ts);
+            } while (res && errno == EINTR);
+        }
+
+    }
+
+    LAST_SCAN_ON = timestamp_now();
+    
+}
+
 enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
+    rate_limit(scanner);
+
     /// Set dst port to the scanning port
     /// Cannot set directly in the `dst_addr`, it gave me invalid argument
     scanner->current_port = port;
