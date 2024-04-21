@@ -5,6 +5,7 @@
  * @brief Starting point of the OMAGE L4 scanner project
  */
 
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -35,6 +36,13 @@ const char *HELP = "UDP/TCP port scanner.\n"
 "  -h, --help                              Print this message.\n"
 "\n";
 
+int SHOULD_EXIT = false;
+
+void handle_sigint(int sig) { 
+    (void)sig;
+    SHOULD_EXIT = true;
+} 
+
 int main(int argc, char **argv) {
     Args args;
 
@@ -52,6 +60,8 @@ int main(int argc, char **argv) {
         return print_interfaces();
     }
 
+    signal(SIGINT, handle_sigint); 
+
     /// Get address info of the hostname
     struct addrinfo *address_info;
 
@@ -64,7 +74,7 @@ int main(int argc, char **argv) {
     socklen_t src_len = sizeof(struct sockaddr_storage);
 
     /// Loop through all IP addresses
-    for (struct addrinfo *dst_addr = address_info; dst_addr; dst_addr = dst_addr->ai_next) {
+    for (struct addrinfo *dst_addr = address_info; dst_addr && !SHOULD_EXIT; dst_addr = dst_addr->ai_next) {
         memcpy(&src_addr, dst_addr->ai_addr, dst_addr->ai_addrlen);
         if (get_interface(args.interface, dst_addr->ai_addr, dst_addr->ai_addrlen, &src_addr, &src_len) != 0) {
             continue;
@@ -100,13 +110,13 @@ void for_each_port(Ports *ports, Scanner *scanner, Args args, ScannerSetupFunc s
 
     switch (ports->type) {
         case PortType_Range:
-            for (uint16_t port = ports->data.range.from; port <= ports->data.range.to; port++) {
+            for (uint16_t port = ports->data.range.from; port <= ports->data.range.to && !SHOULD_EXIT; port++) {
                 scanner_scan(scanner, port, args.wait_time_millis);
             }
             break;
 
         case PortType_Specific:
-            for (size_t i = 0; i < ports->data.specific.count; i++) {
+            for (size_t i = 0; i < ports->data.specific.count && !SHOULD_EXIT; i++) {
                 scanner_scan(scanner, ports->data.specific.ports[i], args.wait_time_millis);
             }
             break;
