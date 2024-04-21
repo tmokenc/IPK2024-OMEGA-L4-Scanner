@@ -12,17 +12,10 @@
 #include "args.h"
 #include "network.h"
 #include "scanner.h"
+#include "udp.h"
+#include "tcp.h"
 
-void for_each_port(
-    Args args,
-    Ports ports, 
-    ScannerInitFunc scanner_init, 
-    struct sockaddr *src_addr, socklen_t src_len,
-    struct sockaddr *dst_addr, socklen_t dst_len
-);
-
-bool is_duplicated_addr(struct sockaddr *addr, struct addrinfo *address_info);
-void print_address(struct sockaddr *addr);
+void for_each_port(Ports *ports, Scanner *scanner, Args args, ScannerSetupFunc setup);
 
 const char *HELP = "UDP/TCP port scanner.\n"
 "Usage: ./ipk-l4-scan <TARGET HOST> [OPTIONS]\n"
@@ -81,8 +74,12 @@ int main(int argc, char **argv) {
         print_address(dst_addr->ai_addr);
         printf("):\nPORT STATE\n");
 
-        for_each_port(args, args.tcp_ports, scanner_init_tcp, (struct sockaddr *)&src_addr, src_len, dst_addr->ai_addr, dst_addr->ai_addrlen);
-        for_each_port(args, args.udp_ports, scanner_init_udp, (struct sockaddr *)&src_addr, src_len, dst_addr->ai_addr, dst_addr->ai_addrlen);
+        Scanner scanner;
+        scanner_new(&scanner, (struct sockaddr *)&src_addr, src_len, dst_addr->ai_addr, dst_addr->ai_addrlen);
+
+        for_each_port(&args.tcp_ports, &scanner, args, tcp_scanner_setup);
+        for_each_port(&args.udp_ports, &scanner, args, udp_scanner_setup);
+
         break;
     }
 
@@ -92,44 +89,25 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-void for_each_port(
-    Args args,
-    Ports ports, 
-    ScannerInitFunc scanner_init, 
-    struct sockaddr *src_addr, socklen_t src_len,
-    struct sockaddr *dst_addr, socklen_t dst_len
-) {
-    Scanner scanner = {0};
-    bool initialized = false;
-    switch (ports.type) {
+void for_each_port(Ports *ports, Scanner *scanner, Args args, ScannerSetupFunc setup) {
+    if (ports_is_empty(ports)) {
+        return;
+    }
+
+    if (setup(scanner, &args) != 0) {
+        return;
+    }
+
+    switch (ports->type) {
         case PortType_Range:
-            for (uint16_t port = ports.data.range.from; port <= ports.data.range.to; port++) {
-                if (!initialized) {
-                    int res = scanner_init(&scanner, args.interface, src_addr, src_len, dst_addr, dst_len);
-
-                    if (res != 0) {
-                        printf("Something went wrong\n");
-                    }
-
-                    initialized = true;
-                }
-
-                scanner_scan(&scanner, port, args.wait_time_millis);
+            for (uint16_t port = ports->data.range.from; port <= ports->data.range.to; port++) {
+                scanner_scan(scanner, port, args.wait_time_millis);
             }
             break;
 
         case PortType_Specific:
-            for (size_t i = 0; i < ports.data.specific.count; i++) {
-                if (!initialized) {
-                    int res = scanner_init(&scanner, args.interface, src_addr, src_len, dst_addr, dst_len);
-                    if (res != 0) {
-                        printf("Something went wrong\n");
-                    }
-
-                    initialized = true;
-                }
-
-                scanner_scan(&scanner, ports.data.specific.ports[i], args.wait_time_millis);
+            for (size_t i = 0; i < ports->data.specific.count; i++) {
+                scanner_scan(scanner, ports->data.specific.ports[i], args.wait_time_millis);
             }
             break;
 
@@ -137,7 +115,5 @@ void for_each_port(
             break;
     }
 
-    if (initialized) {
-        scanner_close(&scanner);
-    }
+    scanner_close(scanner);
 }

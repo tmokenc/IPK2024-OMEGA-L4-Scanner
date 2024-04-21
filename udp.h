@@ -9,10 +9,12 @@
 #define UDP_H
 
 #include "scanner.h"
+#include "args.h"
 
+int udp_scanner_setup(Scanner *scanner, const Args *args);
 int udp_make_header(Scanner *scanner, uint8_t *packet, uint16_t port);
 enum result udp_on_timeout(Scanner *scanner);
-enum result udp_handle_packet(Scanner *scanner, uint8_t *packet, size_t packet_len);
+enum result udp_handle_packet(Scanner *scanner, const uint8_t *packet, size_t packet_len);
 
 #endif
 

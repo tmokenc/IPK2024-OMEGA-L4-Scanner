@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include "network.h"
 #include <net/if.h>
+#include <fcntl.h>
+#include <sys/socket.h>
 
 /**
  * Pseudo header for UDP/TCP IPv4 for checksum
@@ -35,6 +37,35 @@ struct pseudo_header_ipv6 {
 };
 
 int make_pseudo_header(uint8_t *buffer, struct sockaddr *src, struct sockaddr *dst, uint8_t protocol, uint16_t len);
+
+int create_socket(const char *interface, int family, int protocol) {
+    int sockfd = socket(family, SOCK_RAW, protocol);
+
+    if (sockfd < 0) {
+        perror("ERR create socket");
+        return -1;
+    }
+
+    /// Set receiving socket non-blocking for using with poll.
+    int flags = fcntl(sockfd, F_GETFL, 0);
+    if (fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) < 0) {
+        perror("ERR set non blocking fcntl");
+        close(sockfd);
+        return -1;
+    }
+
+    /// Bind interface to the sockets
+    int bind = setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE, interface, strlen(interface));
+
+    if (bind) {
+        perror("ERR bind interface setsockopt");
+        close(sockfd);
+        return -1;
+    }
+
+    return sockfd;
+}
+
 
 void set_port(struct sockaddr *addr, uint16_t port) {
     switch (addr->sa_family) {
@@ -115,13 +146,11 @@ int get_interface(const char *interface_name, struct sockaddr *dst_addr, socklen
     set_port((struct sockaddr *)&addr, 9); // Discard port
 
     if (connect(sockfd, (struct sockaddr *)&addr, dst_addr_len) < 0) {
-        perror("ERR getting interface connect");
         close(sockfd);
         return -1;
     }
 
     if (getsockname(sockfd, (struct sockaddr *)src_addr, src_addr_len)) {
-        perror("ERR getsockname");
         close(sockfd);
         return -2;
     }
@@ -185,11 +214,11 @@ uint16_t checksum(uint8_t *buf, int buf_len, struct sockaddr *src_addr, struct s
     
     // Handle odd-sized case.
     if (size & 1) {
-        uint16_t word16 = (uint8_t)data[i];  // don't sign extend
+        uint16_t word16 = (uint8_t)data[i];
         sum += word16;
     }
     
-    // Add the overflowing (over 16-bit) bits to the 16 value.
+    // fold into 16bit number
     while (sum >> 16) {
         sum = (sum & 0xFFFF) + (sum >> 16);
     }

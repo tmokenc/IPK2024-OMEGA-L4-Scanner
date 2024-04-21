@@ -206,3 +206,18 @@ void args_free(Args *args) {
         free(args->tcp_ports.data.specific.ports);
     }
 }
+
+bool ports_is_empty(Ports *ports) {
+    switch (ports->type) {
+        case PortType_Range:
+            return ports->data.range.from <= ports->data.range.to;
+
+        case PortType_Specific:
+            return ports->data.specific.count == 0;
+
+        case PortType_None:
+            return true;
+    }
+
+    return false;
+}

@@ -1,5 +1,6 @@
 #include "tcp.h"
 #include "network.h"
+#include <netinet/in.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
@@ -9,8 +10,26 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include "tcp.h"
 
 extern uint16_t SOURCE_PORT;
+
+int tcp_scanner_setup(Scanner *scanner, const Args *args) {
+    scanner->make_header = tcp_make_header;
+    scanner->on_timeout = tcp_on_timeout;
+    scanner->handle_packet = tcp_handle_packet;
+    scanner->nof_retransmissions = 1;
+
+    scanner->sendfd = create_socket(args->interface, scanner->src_addr->sa_family, IPPROTO_TCP);
+    scanner->recvfd = create_socket(args->interface, scanner->dst_addr->sa_family, IPPROTO_TCP);
+
+    if (scanner->sendfd < 0 || scanner->recvfd < 0) {
+        close(scanner->sendfd);
+        close(scanner->recvfd);
+        return -1;
+    }
+    return 0;
+}
 
 int tcp_make_header(Scanner *scanner, uint8_t *packet, uint16_t port) {
     static uint16_t SEQ_NUMBER = 0;
@@ -30,8 +49,8 @@ int tcp_make_header(Scanner *scanner, uint8_t *packet, uint16_t port) {
     tcp_header->th_sum = checksum(
         packet,
         sizeof(struct tcphdr),
-        (struct sockaddr *)&scanner->src_addr,
-        (struct sockaddr *)&scanner->dst_addr,
+        scanner->src_addr,
+        scanner->dst_addr,
         IPPROTO_TCP
     );
 
@@ -39,16 +58,12 @@ int tcp_make_header(Scanner *scanner, uint8_t *packet, uint16_t port) {
 }
 
 enum result tcp_on_timeout(Scanner *scanner) {
-    if (scanner->nof_retransmissions >= 1) {
-        // --> timeout = filtered
-        printf("%d/tcp filtered\n", get_port((struct sockaddr *)&scanner->dst_addr));
-        return Result_Done;
-    }
-
-    return Result_Retranmission;
+    // --> timeout = filtered
+    printf("%d/tcp filtered\n", scanner->current_port);
+    return Result_Done;
 }
 
-enum result tcp_handle_packet(Scanner *scanner, uint8_t *packet, size_t packet_len) {
+enum result tcp_handle_packet(Scanner *scanner, const uint8_t *packet, size_t packet_len) {
     if (packet_len < sizeof(struct tcphdr)) {
         return Result_None;
     }

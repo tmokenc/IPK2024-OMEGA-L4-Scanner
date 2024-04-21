@@ -82,4 +82,6 @@ bool args_parse(Args *result, int argc, char **argv);
  */
 void args_free(Args *args);
 
+bool ports_is_empty(Ports *ports);
+
 #endif

@@ -19,6 +19,26 @@
 
 extern uint16_t SOURCE_PORT;
 
+int udp_scanner_setup(Scanner *scanner, const Args *args) {
+    scanner->make_header = udp_make_header;
+    scanner->on_timeout = udp_on_timeout;
+    scanner->handle_packet = udp_handle_packet;
+    scanner->nof_retransmissions = args->nof_retransmissions;
+
+    int icmp_proto = scanner->dst_addr->sa_family == AF_INET6 ? IPPROTO_ICMPV6 : IPPROTO_ICMP;
+
+    scanner->sendfd = create_socket(args->interface, scanner->src_addr->sa_family, IPPROTO_UDP);
+    scanner->recvfd = create_socket(args->interface, scanner->dst_addr->sa_family, icmp_proto);
+
+    if (scanner->sendfd < 0 || scanner->recvfd < 0) {
+        close(scanner->sendfd);
+        close(scanner->recvfd);
+        return -1;
+    }
+
+    return 0;
+}
+
 int udp_make_header(Scanner *scanner, uint8_t *packet, uint16_t port) {
     struct udphdr *udp_header = (struct udphdr *)packet;
     udp_header->uh_sport = htons(SOURCE_PORT);
@@ -29,8 +49,8 @@ int udp_make_header(Scanner *scanner, uint8_t *packet, uint16_t port) {
     udp_header->uh_sum = checksum(
         packet,
         sizeof(struct udphdr),
-        (struct sockaddr *)&scanner->src_addr,
-        (struct sockaddr *)&scanner->dst_addr,
+        scanner->src_addr,
+        scanner->dst_addr,
         IPPROTO_UDP
     );
 
@@ -38,15 +58,11 @@ int udp_make_header(Scanner *scanner, uint8_t *packet, uint16_t port) {
 }
 
 enum result udp_on_timeout(Scanner *scanner) {
-    if (scanner->nof_retransmissions < NOF_RETRANSMISSION) {
-        return Result_Retranmission;
-    }
-
     printf("%d/udp open\n", scanner->current_port);
     return Result_Done;
 }
 
-enum result udp_handle_packet(Scanner *scanner, uint8_t *packet, size_t packet_len) {
+enum result udp_handle_packet(Scanner *scanner, const uint8_t *packet, size_t packet_len) {
     if (packet_len < sizeof(struct udphdr)) {
         return Result_None;
     }
@@ -54,7 +70,7 @@ enum result udp_handle_packet(Scanner *scanner, uint8_t *packet, size_t packet_l
     struct udphdr *udp_header = NULL;
 
     /// Checking the ICMP packet
-    if (scanner->dst_addr.ss_family == AF_INET6) {
+    if (scanner->dst_addr->sa_family == AF_INET6) {
         struct icmp6_hdr *icmpv6_packet = (struct icmp6_hdr *)(packet);
         
         if (icmpv6_packet->icmp6_type != ICMP6_DST_UNREACH 

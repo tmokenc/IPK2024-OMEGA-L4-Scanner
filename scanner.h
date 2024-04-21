@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 #include <sys/socket.h>
+#include "args.h"
 
 enum result {
     Result_None,
@@ -18,34 +19,32 @@ enum result {
     Result_Done,
 };
 
-
 struct scanner;
 
-typedef int (*ScannerInitFunc)(struct scanner *scanner, const char *interface, struct sockaddr *src_addr, int src_addr_len, struct sockaddr *dst_addr, int dst_addr_len);
+typedef int (*ScannerSetupFunc)(struct scanner *scanner, const Args *args);
+
 typedef int (*MakeHeaderFunc)(struct scanner *scanner, uint8_t *packet, uint16_t port);
 typedef enum result (*OnTimeoutFunc)(struct scanner *scanner);
-typedef enum result (*HandlePacketFunc)(struct scanner *scanner, uint8_t *packet, size_t packet_len);
+typedef enum result (*HandlePacketFunc)(struct scanner *scanner, const uint8_t *packet, size_t packet_len);
 
 typedef struct scanner {
     int sendfd;
     int recvfd;
-    struct sockaddr_storage src_addr;
-    struct sockaddr_storage dst_addr;
-    int src_addr_len;
-    int dst_addr_len;
+    struct sockaddr *src_addr;
+    struct sockaddr *dst_addr;
+    socklen_t src_addr_len;
+    socklen_t dst_addr_len;
     MakeHeaderFunc make_header;
     OnTimeoutFunc on_timeout;
     HandlePacketFunc handle_packet;
 
-    /// Number of retransmissions has done
-    int nof_retransmissions;
+    /// Number of retransmissions need to be done before timing out
+    unsigned nof_retransmissions;
     /// Currently scanning port
     uint16_t current_port;
 } Scanner;
 
-int scanner_init_tcp(Scanner *scanner, const char *interface, struct sockaddr *src_addr, int src_addr_len, struct sockaddr *dst_addr, int dst_addr_len);
-int scanner_init_udp(Scanner *scanner, const char *interface, struct sockaddr *src_addr, int src_addr_len, struct sockaddr *dst_addr, int dst_addr_len);
-
+void scanner_new(Scanner *scanner, struct sockaddr *src_addr, socklen_t src_addr_len, struct sockaddr *dst_addr, socklen_t dst_addr_len);
 void scanner_close(Scanner *scanner);
 
 enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time);

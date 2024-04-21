@@ -12,6 +12,9 @@
 #include <sys/socket.h>
 #include <stdbool.h>
 
+/// Create a non-blocking raw socket what is binded to a specific interface
+int create_socket(const char *interface, int family, int protocol);
+
 int print_interfaces();
 bool is_valid_interface(const char *name);
 void print_address(struct sockaddr *);
