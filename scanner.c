@@ -117,7 +117,6 @@ void scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
 
                 start = timestamp_now();
                 result = Result_None;
-                scanner->nof_retransmissions += 1;
 
                 continue;
             }
