@@ -58,14 +58,12 @@ void rate_limit(Scanner *scanner) {
                 res = nanosleep(&ts, &ts);
             } while (res && errno == EINTR);
         }
-
     }
 
     LAST_SCAN_ON = timestamp_now();
-    
 }
 
-enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
+void scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
     rate_limit(scanner);
 
     /// Set dst port to the scanning port
@@ -81,7 +79,7 @@ enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
 
     if (res < 0) {
         perror("ERR sendto");
-        return Result_Error;
+        return;
     }
 
     /// Start receiving packet
@@ -114,7 +112,7 @@ enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
 
                 if (res < 0) {
                     perror("ERR retranmission sendto");
-                    return Result_Error;
+                    return;
                 }
 
                 start = timestamp_now();
@@ -154,10 +152,8 @@ enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time) {
             result = scanner->handle_packet(scanner, packet, len);
         }
 
-        if (result == Result_Done) {
+        if (result != Result_None) {
             break;
         }
     }
-
-    return 0;
 }

@@ -49,6 +49,6 @@ typedef struct scanner {
 void scanner_new(Scanner *scanner, struct sockaddr *src_addr, socklen_t src_addr_len, struct sockaddr *dst_addr, socklen_t dst_addr_len);
 void scanner_close(Scanner *scanner);
 
-enum result scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time);
+void scanner_scan(Scanner *scanner, uint16_t port, unsigned wait_time);
 
 #endif
