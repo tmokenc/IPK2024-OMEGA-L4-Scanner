@@ -21,13 +21,13 @@ int tcp_scanner_setup(Scanner *scanner, const Args *args) {
     scanner->nof_retransmissions = 1;
 
     scanner->sendfd = create_socket(args->interface, scanner->src_addr->sa_family, IPPROTO_TCP);
-    scanner->recvfd = create_socket(args->interface, scanner->dst_addr->sa_family, IPPROTO_TCP);
 
-    if (scanner->sendfd < 0 || scanner->recvfd < 0) {
+    if (scanner->sendfd < 0) {
         close(scanner->sendfd);
-        close(scanner->recvfd);
         return -1;
     }
+
+    scanner->recvfd = scanner->sendfd;
     return 0;
 }
 
