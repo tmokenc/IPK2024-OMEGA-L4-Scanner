@@ -11,6 +11,9 @@ DEPS=$(patsubst %.c,%.d,$(SRCS))
 $(PROJ): $(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
+pack:
+	zip xnguye27.zip *.c *.h Makefile README.md CHANGELOG.md
+
 -include $(DEPS)
 
 .PHONY: clean
