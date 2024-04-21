@@ -129,12 +129,20 @@ bool args_parse(Args *result, int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         if (string_match(argv[i], "-i", "--interface")) {
             if (got_interface) return false;
-            if (!is_valid_interface(argv[i + 1])) {
-                fprintf(stderr, "ERR %s is not a valid interface\n", argv[i+1]);
+
+            i += 1;
+
+            if (i >= argc) {
+                // Only -i argument
                 return true;
             }
 
-            result->interface = argv[++i];
+            if (!is_valid_interface(argv[i])) {
+                fprintf(stderr, "ERR %s is not a valid interface\n", argv[i]);
+                return true;
+            }
+
+            result->interface = argv[i];
             got_interface = true;
             continue;
         }
@@ -210,7 +218,7 @@ void args_free(Args *args) {
 bool ports_is_empty(Ports *ports) {
     switch (ports->type) {
         case PortType_Range:
-            return ports->data.range.from <= ports->data.range.to;
+            return ports->data.range.to <= ports->data.range.from;
 
         case PortType_Specific:
             return ports->data.specific.count == 0;

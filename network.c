@@ -5,14 +5,19 @@
  * @brief Implementation for `network.h`
  */
 
-#include <pcap.h>
+#include "network.h"
+#include <arpa/inet.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "network.h"
 #include <net/if.h>
 #include <fcntl.h>
 #include <sys/socket.h>
+#include <ifaddrs.h>
+#include <netinet/in.h>
+#include <netdb.h>
+
 
 /**
  * Pseudo header for UDP/TCP IPv4 for checksum
@@ -97,25 +102,49 @@ uint16_t get_port(struct sockaddr *addr) {
 
 
 int print_interfaces() {
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_if_t *interfaces;
-    
-    // Get a list of available network interfaces
-    if (pcap_findalldevs(&interfaces, errbuf) == -1) {
-        fprintf(stderr, "ERR finding devices: %s\n", errbuf);
+    struct ifaddrs *ifaddr, *ifa;
+
+    // Array to store interface names
+    char interface_names[NI_MAXHOST][IF_NAMESIZE] = {0};
+    int num_interfaces = 0;
+
+    if (getifaddrs(&ifaddr) == -1) {
+        perror("getifaddrs");
         return 1;
     }
 
-    // Print the list of interfaces
-    printf("Available network interfaces:\n");
-    pcap_if_t *interface = interfaces;
-    while (interface) {
-        printf("- %s\n", interface->name);
-        interface = interface->next;
+    // Iterate through the list of interfaces
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == NULL) continue;
+
+        // Check if the interface has an IPv4 or IPv6 address
+        if (ifa->ifa_addr->sa_family != AF_INET && ifa->ifa_addr->sa_family != AF_INET6) {
+            continue;
+        }
+
+        // Check if the interface name is already in the list
+        int duplicate = 0;
+        for (int i = 0; i < num_interfaces; ++i) {
+            if (strcmp(interface_names[i], ifa->ifa_name) == 0) {
+                duplicate = 1;
+                break;
+            }
+        }
+
+        // If the interface name is not a duplicate, add it to the list
+        if (!duplicate) {
+            strncpy(interface_names[num_interfaces], ifa->ifa_name, IF_NAMESIZE - 1);
+            interface_names[num_interfaces][IF_NAMESIZE - 1] = '\0';
+            num_interfaces++;
+        }
     }
 
-    // Free the memory allocated for the interface list
-    pcap_freealldevs(interfaces);
+    // Print the list of unique interface names
+    for (int i = 0; i < num_interfaces; ++i) {
+        printf("%s\n", interface_names[i]);
+    }
+
+    freeifaddrs(ifaddr);
     return 0;
 
 }
@@ -131,7 +160,6 @@ int get_interface(const char *interface_name, struct sockaddr *dst_addr, socklen
         perror("ERR getting interface socket");
         return 1;
     }
-
 
     int res = setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE, interface_name, strlen(interface_name));
 
