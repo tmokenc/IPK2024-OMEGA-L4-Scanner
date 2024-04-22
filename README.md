@@ -107,6 +107,13 @@ This module provide various functions to work with networking including:
 - get/print interface and check for validity of an interface name.
 - packet checksum.
 
+#### Obtaining the Source Address
+
+To acquire the source address of an interface that is compatible with the destination address, the process involves utilizing the `connect` function on a socket that operates in a non-connection mode, such as UDP Datagram. This action simply establishes the correct address of the interface without engaging in any actual communication. The source address can then be retrieved using the `getsockname` function. In summary, the algorithm follows these steps:
+1. Create a UDP Datagram socket.
+2. Use the `connect` function on the socket, specifying the destination address.
+3. Retrieve the source address via the `getsockname` function.
+
 #### Checksum
 
 Calculating checksums is perhaps the most intricate aspect of this project. Fortunately, the checksums are identical for both TCP and UDP protocols. This is why the `checksum` function is implemented in the `network` module.
@@ -216,4 +223,6 @@ This document was done with the help of [Deepl Write](https://www.deepl.com/writ
 
 [8] Wikipedia contributors, 'SYN flood', Wikipedia, The Free Encyclopedia, 16 October 2023, 19:29 UTC, <https://en.wikipedia.org/w/index.php?title=SYN_flood&oldid=1180457507> [accessed 22 April 2024] 
 
-[9] Vladimir Vesely, Jan Dolejka. IPK 2023/2024, <https://git.fit.vutbr.cz/NESFIT/IPK-Projects-2024> [accessed 22 April 2024]
+[9] Vladimir Vesely, Daniel Dolejška. IPK 2023/2024, <https://git.fit.vutbr.cz/NESFIT/IPK-Projects-2024> [accessed 22 April 2024]
+
+[10] Free Software Foundation Linux. connect(3) - Linux man page, <https://linux.die.net/man/3/connect> [accessed 22 April 2024]
