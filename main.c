@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
     /// Loop through all IP addresses
     for (struct addrinfo *dst_addr = address_info; dst_addr && !SHOULD_EXIT; dst_addr = dst_addr->ai_next) {
         memcpy(&src_addr, dst_addr->ai_addr, dst_addr->ai_addrlen);
-        if (get_interface(args.interface, dst_addr->ai_addr, dst_addr->ai_addrlen, &src_addr, &src_len) != 0) {
+        if (get_src_addr(args.interface, dst_addr->ai_addr, dst_addr->ai_addrlen, &src_addr, &src_len) != 0) {
             continue;
         }
 

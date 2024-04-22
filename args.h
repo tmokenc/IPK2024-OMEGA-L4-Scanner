@@ -82,6 +82,11 @@ bool args_parse(Args *result, int argc, char **argv);
  */
 void args_free(Args *args);
 
+/**
+ * @brief Check if the given Ports is empty or not.
+ * @param ports Pointer to the Ports structure.
+ * @return True if is empty, false if not.
+ */
 bool ports_is_empty(Ports *ports);
 
 #endif
