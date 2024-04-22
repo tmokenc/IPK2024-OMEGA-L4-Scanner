@@ -153,7 +153,7 @@ bool is_valid_interface(const char *name) {
     return if_nametoindex(name);
 }
 
-int get_interface(const char *interface_name, struct sockaddr *dst_addr, socklen_t dst_addr_len, struct sockaddr_storage *src_addr, socklen_t *src_addr_len) {
+int get_src_addr(const char *interface_name, struct sockaddr *dst_addr, socklen_t dst_addr_len, struct sockaddr_storage *src_addr, socklen_t *src_addr_len) {
     int sockfd = socket(dst_addr->sa_family, SOCK_DGRAM, IPPROTO_UDP);
 
     if (sockfd < 0) {

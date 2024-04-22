@@ -2,17 +2,16 @@ PROJ=ipk-l4-scan
 
 CC=gcc
 CFLAGS=-Wall -Wextra -O2 -MMD -Werror -Wpedantic -g
-LDFLAGS=-lpcap
 
 SRCS=$(wildcard *.c)
 OBJS=$(patsubst %.c,%.o,$(SRCS))
 DEPS=$(patsubst %.c,%.d,$(SRCS))
 
 $(PROJ): $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^
 
 pack:
-	zip xnguye27.zip *.c *.h Makefile README.md CHANGELOG.md
+	zip xnguye27.zip *.c *.h Makefile README.md CHANGELOG.md LICENSE
 
 -include $(DEPS)
 
