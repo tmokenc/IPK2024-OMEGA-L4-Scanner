@@ -56,7 +56,7 @@ UDP (User Datagram Protocol) [1] is a connectionless, unreliable protocol used f
 
 Unlike TCP, UDP doesn't establish connections prior to data transmission, making port scanning more challenging than TCP [7]. This difficulty arises because the delivery of UDP packets is not guaranteed, nor is the reception of ICMP packets in response from the target host. Moreover, the kernel imposes a rate limit for generating ICMP unreachable packets, typically set to one per second.
 
-It's important to note that if the target responds to an empty packet, the port may be `open` or `filtered`, but there's no definitive way to ascertain this. In this project, it is marked as `open` for simplicity.
+It's important to note that if the target does not respond to an empty packet, the port may be `open` or `filtered`, but there's no definitive way to ascertain this. In this project, it is marked as `open` for simplicity.
 
 ## Usage <a id="usage"></a>
 
