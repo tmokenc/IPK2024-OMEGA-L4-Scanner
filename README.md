@@ -9,7 +9,7 @@
 + [Implementation](#impl)
     - [Scanner](#scanner)
         - [TCP](#tcp)
-        - [UDP](#UDP)
+        - [UDP](#udp)
     - [Network](#network)
         - [Obtaining the Source Address](#addr)
         - [Checksum](#checksum) 
@@ -48,13 +48,15 @@ In TCP SYN scanning, if the target port is open, it responds with a SYN-ACK (syn
 
 ### UDP ICMP Scanning <a id="icmp"></a>
 
-UDP (User Datagram Protocol) [1] is a connectionless, unreliable protocol suitable for quick data transfers. If a UDP port is closed, the target system typically responds with an ICMP Port Unreachable message. However, some systems may not respond consistently.
+UDP (User Datagram Protocol) [1] is a connectionless, unreliable protocol used for swift data transfers. When a UDP port is closed, the typical response from the target system is an ICMP Port Unreachable message. However, responses may not always be consistent across systems.
 
 | UDP ICMP Scanning  |
 |:------------------:|
 | ![](./img/udp.png) |
 
-Unlike TCP, UDP doesn't establish connections before sending data, which make port scanning a lot harder than TCP [7], as the UDP packet we sent does not means it will be delivered as well as the ICMP packet the target host sending back. Not only that, the kernel has a rate limit for generating ICMP unreach packet with default to 1 second per packet.
+Unlike TCP, UDP doesn't establish connections prior to data transmission, making port scanning more challenging than TCP [7]. This difficulty arises because the delivery of UDP packets is not guaranteed, nor is the reception of ICMP packets in response from the target host. Moreover, the kernel imposes a rate limit for generating ICMP unreachable packets, typically set to one per second.
+
+It's important to note that if the target responds to an empty packet, the port may be `open` or `filtered`, but there's no definitive way to ascertain this. In this project, it is marked as `open` for simplicity.
 
 ## Usage <a id="usage"></a>
 
@@ -110,7 +112,9 @@ The scanning proccess is as the following activity diagram.
 
 #### TCP <a id="tcp"></a>
 
-- Sending and receiving both are done through TCP protocol, it will create one socket with `IPPROTO_TCP` and use that for both sending and receiving.
+Scanner interface realization with TCP:
+- It will create only one socket with `IPPROTO_TCP` and use that for both sending and receiving, since sending and receiving both are done through TCP protocol.
+- Creating header by using the `struct tcphdr` in `netinet/tcp.h`, because it is made to align the memory representation with the TCP header specification [2].
 - Number of retransmissions is set to 1.
 - On timeout: The port is filtered.
 - On packet:
@@ -120,8 +124,11 @@ The scanning proccess is as the following activity diagram.
 
 #### UDP <a id="udp"></a>
 
+Scanner interface realization with UDP:
 - Socket for sending is created with `IPPROTO_UDP` and socket for receiving is created with `IPPROTO_ICMP` or `IPPROTO_ICMPV6` based on the version of address.
-- Number of retransmissions is set base on the command line arguments (default is 1).
+- Creating header by using the `struct udphdr` in `netinet/udp.h`, because it is made to align the memory representation with the UDP header specification [1].
+- Number of retransmissions is set based on the command line arguments (default is 1).
+- Set the rate limit between 2 scan based on the command line arguments (default is 1000).
 - On timeout: The port is open, be aware that it could be filtered or it is a false positive.
 - On packet: The port is closed if the ICMP packet is Port Unreach type, that is `type 3 code 3` for IPv4 or `type 1 code 4` for IPv6.
 
