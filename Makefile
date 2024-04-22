@@ -11,7 +11,7 @@ $(PROJ): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 
 pack:
-	zip xnguye27.zip *.c *.h Makefile README.md CHANGELOG.md LICENSE
+	zip xnguye27.zip -r img/*.png *.c *.h Makefile README.md CHANGELOG.md LICENSE
 
 -include $(DEPS)
 
