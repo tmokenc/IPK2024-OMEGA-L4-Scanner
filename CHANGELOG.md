@@ -14,8 +14,9 @@
         - [x] Scanner setup
         - [x] Make header
         - [x] On timeout
-        - [ ] On packet
-            - [ ] Send back RST
+        - [x] On packet
 - [x] SIGINT handle
 
 ## Problems
+- Sometime the SYN packet include 2 other flags (not RST), I cannot find the cause but it has no affect to the scanning process.
+- While there is no memory leak, Valgrind shows some problems with memory manipulation.
